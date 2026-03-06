@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from './supabase';
 
 // ─── CONFIGURACIÓN HORARIA ────────────────────────────────────────────────
 // Para cambiar temporada, simplemente cambiá ACTIVE_SEASON a "invierno"
@@ -127,14 +128,29 @@ export default function App() {
   const daysInMonth = getDaysInMonth(viewYear,viewMonth);
   const firstDay    = getFirstDay(viewYear,viewMonth);
 
-  const submitBooking = () => {
-    setAllBookings(prev => [...prev, {
-      id: Date.now(), service, duration, date: selectedDate, time: selectedTime, ...form,
-      dog2: twoDogs ? form.dog2 : "",
-    }]);
-    setStep(5);
+  const submitBooking = async () => {
+  const newBooking = {
+    id: Date.now(), service, duration, date: selectedDate, time: selectedTime, ...form,
+    dog2: twoDogs ? form.dog2 : "",
   };
-
+  setAllBookings(prev => [...prev, newBooking]);
+  
+  await supabase.from('turnos').insert([{
+    nombre: form.name,
+    telefono: form.phone,
+    barrio: form.barrio,
+    servicio: service,
+    duracion: duration,
+    fecha: selectedDate,
+    hora: selectedTime,
+    perro1: form.dog,
+    perro2: twoDogs ? form.dog2 : "",
+    notas: form.notes,
+  }]);
+  
+  setStep(5);
+};
+ 
   const reset = () => {
     setStep(0); setService(null); setDuration(60); setTwoDogs(false);
     setSelectedDate(null); setSelectedTime(null);
