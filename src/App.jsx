@@ -156,6 +156,7 @@ export default function App() {
   const [authEmail,    setAuthEmail]    = useState("");
   const [authPass,     setAuthPass]     = useState("");
   const [authName,     setAuthName]     = useState("");
+  const [authPhone,    setAuthPhone]    = useState("");
   const [authError,    setAuthError]    = useState("");
   const [authLoading,  setAuthLoading]  = useState(false);
 
@@ -163,7 +164,7 @@ export default function App() {
     setAuthLoading(true); setAuthError("");
     const { data, error } = await supabase.auth.signUp({
       email: authEmail, password: authPass,
-      options: { data: { full_name: authName } }
+      options: { data: { full_name: authName, phone: authPhone } }
     });
     if (error) { setAuthError(error.message); }
     else { setAuthUser(data.user); setAuthView(null); }
@@ -198,7 +199,11 @@ export default function App() {
   const [selectedTime, setSelectedTime] = useState(null);
   const [twoDogs,      setTwoDogs]      = useState(false);
   const [sharedMatch,  setSharedMatch]  = useState(null);
-  const [form, setForm] = useState({ name: authUser?.user_metadata?.full_name||"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
+  const [form, setForm] = useState({
+    name:  authUser?.user_metadata?.full_name || "",
+    phone: authUser?.user_metadata?.phone || "",
+    dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false
+  });
   const [allBookings,  setAllBookings]  = useState(DEMO_BOOKINGS);
   const [paw,  setPaw]  = useState({ x:0, y:0, show:false });
   const [rainMode,       setRainMode]       = useState(false);
@@ -278,7 +283,11 @@ export default function App() {
   const reset = () => {
     setStep(0); setService(null); setDuration(60); setDuration2(60); setTwoDogs(false);
     setSelectedDate(null); setSelectedTime(null); setSharedMatch(null); setRainMode(false);
-    setForm({ name: authUser?.user_metadata?.full_name||"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
+    setForm({
+      name:  authUser?.user_metadata?.full_name || "",
+      phone: authUser?.user_metadata?.phone || "",
+      dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false
+    });
   };
 
   const css = `
@@ -665,7 +674,7 @@ export default function App() {
           </div>
         )}
 
-        {/* STEP 4: Formulario */}
+        {/* STEP 4: Formulario — requiere login */}
         {step===4 && (
           <div className="ani">
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
@@ -673,88 +682,95 @@ export default function App() {
               <h2 style={{fontFamily:"'Fredoka One',cursive",fontSize:24,color:C.dark}}>Tus datos 🐾</h2>
             </div>
 
-            <div className="card" style={{padding:14,marginBottom:20,display:"flex",gap:12,alignItems:"center"}}>
-              <span style={{fontSize:26}}>{serviceObj?.icon}</span>
-              <div>
-                <div style={{fontWeight:800,color:serviceObj?.color,fontSize:14}}>{serviceObj?.label} · {service==="doble"?`${duration}+${duration2} min`:(durationObj?.label)}</div>
-                <div style={{fontSize:12,color:C.soft}}>📅 {selectedDate?.split("-").reverse().join("/")} a las {selectedTime}</div>
-              </div>
-            </div>
-
-            {/* Política de cancelación */}
-            <div style={{marginBottom:18,padding:"12px 16px",borderRadius:14,background:`${C.light}`,border:`1px solid ${C.soft}44`,fontSize:12,color:C.soft,lineHeight:1.6}}>
-              <strong style={{color:C.primary}}>📋 Política de cancelación:</strong> Las cancelaciones deben realizarse con al menos <strong>12 horas de anticipación</strong>. En caso contrario se abona el 50% del valor del paseo. Se evalúan excepciones por emergencias o urgencias.
-            </div>
-
-            <div style={{display:"grid",gap:13}}>
-              <div>
-                <label className="lbl">TU NOMBRE *</label>
-                <input className="inp" placeholder="Ej: María González" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
-              </div>
-              <div>
-                <label className="lbl">TELÉFONO / WHATSAPP *</label>
-                <input className="inp" placeholder="Ej: 358 123-4567" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))}/>
-              </div>
-              <div>
-                <label className="lbl">BARRIO (Río Cuarto) *</label>
-                <select className="inp" value={form.barrio} onChange={e=>setForm(f=>({...f,barrio:e.target.value}))}>
-                  <option value="">Seleccioná tu barrio...</option>
-                  {BARRIOS.map(b=><option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-
-              {/* Perro 1 */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-                <div>
-                  <label className="lbl">{(twoDogs||service==="doble")?"PERRO 1 - NOMBRE *":"NOMBRE DEL PERRO *"}</label>
-                  <input className="inp" placeholder="Ej: Rocky" value={form.dog} onChange={e=>setForm(f=>({...f,dog:e.target.value}))}/>
+            {/* MURO DE LOGIN */}
+            {!authUser ? (
+              <div style={{textAlign:"center",padding:"30px 20px"}}>
+                <div style={{fontSize:54,marginBottom:14}}>🔐</div>
+                <h3 style={{fontFamily:"'Fredoka One',cursive",fontSize:22,color:C.primary,marginBottom:8}}>¡Ya casi está!</h3>
+                <p style={{color:C.soft,fontSize:14,marginBottom:24,lineHeight:1.6}}>
+                  Para confirmar tu turno necesitás ingresar o crear una cuenta. Es rápido y gratis 🐾
+                </p>
+                <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:280,margin:"0 auto"}}>
+                  <button className="btn-p" onClick={()=>setAuthView("register")}>🎉 Crear cuenta (10% desc.)</button>
+                  <button className="btn-s" style={{padding:"12px 0",fontSize:14}} onClick={()=>setAuthView("login")}>🔑 Ya tengo cuenta</button>
                 </div>
-                <div>
-                  <label className="lbl">{(twoDogs||service==="doble")?"PERRO 1 - RAZA":"RAZA"}</label>
-                  <input className="inp" placeholder="Ej: Labrador" value={form.breed} onChange={e=>setForm(f=>({...f,breed:e.target.value}))}/>
-                </div>
+                <p style={{marginTop:20,fontSize:11,color:C.soft}}>Tu servicio, duración y horario ya están guardados 👆</p>
               </div>
-
-              {/* Perro 2 */}
-              {(twoDogs || service==="doble") && (
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            ) : (
+              <>
+                <div className="card" style={{padding:14,marginBottom:20,display:"flex",gap:12,alignItems:"center"}}>
+                  <span style={{fontSize:26}}>{serviceObj?.icon}</span>
                   <div>
-                    <label className="lbl">PERRO 2 - NOMBRE *</label>
-                    <input className="inp" placeholder="Nombre del segundo perro" value={form.dog2} onChange={e=>setForm(f=>({...f,dog2:e.target.value}))}/>
+                    <div style={{fontWeight:800,color:serviceObj?.color,fontSize:14}}>{serviceObj?.label} · {service==="doble"?`${duration}+${duration2} min`:(durationObj?.label)}</div>
+                    <div style={{fontSize:12,color:C.soft}}>📅 {selectedDate?.split("-").reverse().join("/")} a las {selectedTime}</div>
+                  </div>
+                </div>
+
+                <div style={{marginBottom:18,padding:"12px 16px",borderRadius:14,background:`${C.light}`,border:`1px solid ${C.soft}44`,fontSize:12,color:C.soft,lineHeight:1.6}}>
+                  <strong style={{color:C.primary}}>📋 Política de cancelación:</strong> Las cancelaciones deben realizarse con al menos <strong>12 horas de anticipación</strong>. En caso contrario se abona el 50% del valor del paseo. Se evalúan excepciones por emergencias o urgencias.
+                </div>
+
+                <div style={{display:"grid",gap:13}}>
+                  <div>
+                    <label className="lbl">TU NOMBRE *</label>
+                    <input className="inp" placeholder="Ej: María González" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
                   </div>
                   <div>
-                    <label className="lbl">PERRO 2 - RAZA</label>
-                    <input className="inp" placeholder="Ej: Beagle" value={form.breed2} onChange={e=>setForm(f=>({...f,breed2:e.target.value}))}/>
+                    <label className="lbl">TELÉFONO / WHATSAPP *</label>
+                    <input className="inp" placeholder="Ej: 358 123-4567" value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))}/>
+                  </div>
+                  <div>
+                    <label className="lbl">BARRIO (Río Cuarto) *</label>
+                    <select className="inp" value={form.barrio} onChange={e=>setForm(f=>({...f,barrio:e.target.value}))}>
+                      <option value="">Seleccioná tu barrio...</option>
+                      {BARRIOS.map(b=><option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    <div>
+                      <label className="lbl">{(twoDogs||service==="doble")?"PERRO 1 - NOMBRE *":"NOMBRE DEL PERRO *"}</label>
+                      <input className="inp" placeholder="Ej: Rocky" value={form.dog} onChange={e=>setForm(f=>({...f,dog:e.target.value}))}/>
+                    </div>
+                    <div>
+                      <label className="lbl">{(twoDogs||service==="doble")?"PERRO 1 - RAZA":"RAZA"}</label>
+                      <input className="inp" placeholder="Ej: Labrador" value={form.breed} onChange={e=>setForm(f=>({...f,breed:e.target.value}))}/>
+                    </div>
+                  </div>
+                  {(twoDogs || service==="doble") && (
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                      <div>
+                        <label className="lbl">PERRO 2 - NOMBRE *</label>
+                        <input className="inp" placeholder="Nombre del segundo perro" value={form.dog2} onChange={e=>setForm(f=>({...f,dog2:e.target.value}))}/>
+                      </div>
+                      <div>
+                        <label className="lbl">PERRO 2 - RAZA</label>
+                        <input className="inp" placeholder="Ej: Beagle" value={form.breed2} onChange={e=>setForm(f=>({...f,breed2:e.target.value}))}/>
+                      </div>
+                    </div>
+                  )}
+                  {service==="paseo" && !twoDogs && (
+                    <div style={{padding:"13px 16px",borderRadius:14,background:`${C.accent}10`,border:`1px solid ${C.accent}44`}}>
+                      <div style={{display:"flex",alignItems:"center",gap:11}}>
+                        <div className={`chk ${form.sharedOk?"on":""}`} onClick={()=>setForm(f=>({...f,sharedOk:!f.sharedOk}))}>
+                          {form.sharedOk && <span style={{fontSize:12,fontWeight:900,color:C.white}}>✓</span>}
+                        </div>
+                        <div style={{fontSize:13,fontWeight:700,color:C.dark}}>Acepto paseo compartido con otro perro (si hay compatibilidad y vivo cerca)</div>
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <label className="lbl">NOTAS</label>
+                    <textarea className="inp" placeholder="Alergias, comportamiento, indicaciones especiales..." rows={3} value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{resize:"vertical"}}/>
                   </div>
                 </div>
-              )}
-
-              {/* Paseo compartido — solo si 1 perro, paseo simple */}
-              {service==="paseo" && !twoDogs && (
-                <div style={{padding:"13px 16px",borderRadius:14,background:`${C.accent}10`,border:`1px solid ${C.accent}44`}}>
-                  <div style={{display:"flex",alignItems:"center",gap:11}}>
-                    <div className={`chk ${form.sharedOk?"on":""}`} onClick={()=>setForm(f=>({...f,sharedOk:!f.sharedOk}))}>
-                      {form.sharedOk && <span style={{fontSize:12,fontWeight:900,color:C.white}}>✓</span>}
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color:C.dark}}>
-                      Acepto paseo compartido con otro perro (si hay compatibilidad y vivo cerca)
-                    </div>
-                  </div>
+                <div style={{marginTop:22,textAlign:"center"}}>
+                  <button className="btn-p"
+                    disabled={!form.name||!form.phone||!form.dog||!form.barrio||((twoDogs||service==="doble")&&!form.dog2)}
+                    onClick={submitBooking}
+                  >🐾 Confirmar Turno</button>
                 </div>
-              )}
-
-              <div>
-                <label className="lbl">NOTAS</label>
-                <textarea className="inp" placeholder="Alergias, comportamiento, indicaciones especiales..." rows={3} value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{resize:"vertical"}}/>
-              </div>
-            </div>
-
-            <div style={{marginTop:22,textAlign:"center"}}>
-              <button className="btn-p"
-                disabled={!form.name||!form.phone||!form.dog||!form.barrio||((twoDogs||service==="doble")&&!form.dog2)}
-                onClick={submitBooking}
-              >🐾 Confirmar Turno</button>
-            </div>
+              </>
+            )}
           </div>
         )}
 
@@ -952,6 +968,9 @@ export default function App() {
               {authView==="register" && (
                 <input className="inp" placeholder="Tu nombre completo" value={authName} onChange={e=>setAuthName(e.target.value)}/>
               )}
+              {authView==="register" && (
+                <input className="inp" type="tel" placeholder="WhatsApp (Ej: 358 123-4567)" value={authPhone} onChange={e=>setAuthPhone(e.target.value)}/>
+              )}
               <input className="inp" type="email" placeholder="Email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/>
               <input className="inp" type="password" placeholder="Contraseña" value={authPass} onChange={e=>setAuthPass(e.target.value)}
                 onKeyDown={e=>{ if(e.key==="Enter") authView==="login"?handleLogin():handleRegister(); }}/>
@@ -1001,35 +1020,74 @@ export default function App() {
             </div>
 
             {/* Info del usuario */}
-            <div className="card" style={{padding:22,marginBottom:18}}>
+            <div className="card" style={{padding:22,marginBottom:14}}>
               <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
-                <div style={{width:54,height:54,borderRadius:"50%",background:`linear-gradient(135deg,${C.primary},${C.secondary})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.white}}>
+                <div style={{width:54,height:54,borderRadius:"50%",background:`linear-gradient(135deg,${C.primary},${C.secondary})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.white,flexShrink:0}}>
                   {authUser.user_metadata?.full_name?.[0]?.toUpperCase() || "🐾"}
                 </div>
                 <div>
                   <div style={{fontWeight:900,fontSize:17,color:C.dark}}>{authUser.user_metadata?.full_name || "Sin nombre"}</div>
                   <div style={{fontSize:12,color:C.soft}}>{authUser.email}</div>
+                  {authUser.user_metadata?.phone && <div style={{fontSize:12,color:C.soft}}>📱 {authUser.user_metadata.phone}</div>}
+                  <div style={{fontSize:11,color:C.soft,marginTop:3}}>
+                    🗓 Cliente desde {new Date(authUser.created_at).toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"})}
+                  </div>
                 </div>
               </div>
 
-              {/* Estado descuento */}
-              <div style={{padding:"12px 14px",borderRadius:12,background: isNewClient?`${C.accent}18`:`${C.primary}12`,border:`1px solid ${isNewClient?C.accent:C.primary}44`}}>
-                {isNewClient ? (
-                  <div style={{fontSize:13,color:C.dark}}>
-                    🎉 <strong style={{color:C.accent}}>¡Sos clienta nueva!</strong> Tu próximo paseo tiene <strong>10% de descuento</strong>
+              {/* Descuentos vigentes */}
+              <div style={{fontWeight:800,color:C.primary,fontSize:12,marginBottom:8,letterSpacing:.5}}>🏷️ DESCUENTOS VIGENTES</div>
+              <div style={{display:"grid",gap:7}}>
+                {isNewClient && (
+                  <div style={{padding:"10px 14px",borderRadius:12,background:`${C.accent}18`,border:`1px solid ${C.accent}44`,fontSize:13,color:C.dark}}>
+                    🎉 <strong style={{color:C.accent}}>10% — Primer paseo</strong> · ¡Sos clienta nueva!
                   </div>
-                ) : (weeklyCount >= 2 || monthlyCount >= 11) ? (
-                  <div style={{fontSize:13,color:C.dark}}>
-                    ⭐ <strong style={{color:C.primary}}>¡Clienta frecuente!</strong> Tenés <strong>15% de descuento</strong> aplicado
+                )}
+                {!isNewClient && (weeklyCount >= 2 || monthlyCount >= 11) && (
+                  <div style={{padding:"10px 14px",borderRadius:12,background:`${C.primary}12`,border:`1px solid ${C.primary}33`,fontSize:13,color:C.dark}}>
+                    ⭐ <strong style={{color:C.primary}}>15% — Cliente frecuente</strong> · {weeklyCount >= 2 ? `${weeklyCount+1}+ paseos esta semana` : `${monthlyCount+1}+ paseos este mes`}
                   </div>
-                ) : (
-                  <div style={{fontSize:13,color:C.soft}}>
-                    🐾 Paseos este mes: <strong>{monthlyCount}</strong> · Esta semana: <strong>{weeklyCount}</strong>
-                    <br/><span style={{fontSize:11}}>Con 3+ paseos/semana o 12+/mes obtenés 15% de descuento</span>
+                )}
+                <div style={{padding:"10px 14px",borderRadius:12,background:`${C.secondary}12`,border:`1px solid ${C.secondary}33`,fontSize:13,color:C.dark}}>
+                  🐕 <strong style={{color:C.secondary}}>20% — 2do perro</strong> · Siempre aplicado al traer 2 perros
+                </div>
+                {!isNewClient && weeklyCount < 2 && monthlyCount < 11 && (
+                  <div style={{padding:"8px 14px",borderRadius:12,background:C.light,fontSize:11,color:C.soft}}>
+                    📊 Paseos esta semana: <strong>{weeklyCount}</strong> · Este mes: <strong>{monthlyCount}</strong>
+                    <br/>Con 3+/semana o 12+/mes obtenés 15% de descuento
                   </div>
                 )}
               </div>
             </div>
+
+            {/* Mis perros (del último turno) */}
+            {clientBookings.length > 0 && (() => {
+              const ultimo = clientBookings[clientBookings.length - 1];
+              return (
+                <div className="card" style={{padding:18,marginBottom:14}}>
+                  <div style={{fontWeight:800,color:C.primary,fontSize:12,marginBottom:10,letterSpacing:.5}}>🐶 MIS PERROS</div>
+                  <div style={{display:"grid",gap:8}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:12,background:C.light}}>
+                      <span style={{fontSize:22}}>🐕</span>
+                      <div>
+                        <div style={{fontWeight:800,fontSize:14,color:C.dark}}>{ultimo.dog}</div>
+                        {ultimo.breed && <div style={{fontSize:12,color:C.soft}}>{ultimo.breed}</div>} 
+                        {ultimo.notes && <div style={{fontSize:11,color:C.soft,marginTop:2}}>📝 {ultimo.notes}</div>}
+                      </div>
+                    </div>
+                    {ultimo.dog2 && (
+                      <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:12,background:C.light}}>
+                        <span style={{fontSize:22}}>🐕</span>
+                        <div>
+                          <div style={{fontWeight:800,fontSize:14,color:C.dark}}>{ultimo.dog2}</div>
+                          {ultimo.breed2 && <div style={{fontSize:12,color:C.soft}}>{ultimo.breed2}</div>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Historial de paseos */}
             <div style={{fontFamily:"'Fredoka One',cursive",fontSize:18,color:C.dark,marginBottom:12}}>🦮 Mis paseos</div>
@@ -1042,14 +1100,18 @@ export default function App() {
             ) : (
               clientBookings.slice().reverse().map(b=>{
                 const svc = SERVICES.find(s=>s.id===b.service);
+                const dur = DURATIONS.find(d=>d.value===b.duration);
                 return (
                   <div key={b.id} className="bk-row" style={{borderLeftColor:svc?.color}}>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                       <span style={{fontWeight:800,color:svc?.color,fontSize:13}}>{svc?.icon} {svc?.label}</span>
                       <span style={{color:C.soft,fontSize:12}}>{b.date?.split("-").reverse().join("/")} · {b.time}</span>
                     </div>
-                    <div style={{fontSize:12,color:C.dark}}>🐶 {b.dog}{b.dog2?` + ${b.dog2}`:""} · 📍 {b.barrio}</div>
-                    <div style={{fontSize:12,color:C.soft}}>⏱ {b.duration} min</div>
+                    <div style={{fontSize:12,color:C.dark,marginBottom:2}}>
+                      🐶 <strong>{b.dog}</strong>{b.breed?` (${b.breed})`:""}{b.dog2?` + ${b.dog2}${b.breed2?` (${b.breed2})`:""}`:""} 
+                    </div>
+                    <div style={{fontSize:12,color:C.soft}}>⏱ {b.duration} min · 📍 {b.barrio}</div>
+                    {b.notes && <div style={{fontSize:11,color:C.soft,marginTop:3}}>💬 {b.notes}</div>}
                   </div>
                 );
               })
