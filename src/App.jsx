@@ -150,20 +150,58 @@ const DEMO_BOOKINGS = [
 export default function App() {
   const today = new Date();
 
+  // ─── AUTH ───────────────────────────────────────────────────────────────
+  const [authUser,     setAuthUser]     = useState(null);
+  const [authView,     setAuthView]     = useState(null); // null | "login" | "register" | "profile"
+  const [authEmail,    setAuthEmail]    = useState("");
+  const [authPass,     setAuthPass]     = useState("");
+  const [authName,     setAuthName]     = useState("");
+  const [authError,    setAuthError]    = useState("");
+  const [authLoading,  setAuthLoading]  = useState(false);
+
+  const handleRegister = async () => {
+    setAuthLoading(true); setAuthError("");
+    const { data, error } = await supabase.auth.signUp({
+      email: authEmail, password: authPass,
+      options: { data: { full_name: authName } }
+    });
+    if (error) { setAuthError(error.message); }
+    else { setAuthUser(data.user); setAuthView(null); }
+    setAuthLoading(false);
+  };
+
+  const handleLogin = async () => {
+    setAuthLoading(true); setAuthError("");
+    const { data, error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPass });
+    if (error) { setAuthError("Email o contraseña incorrectos"); }
+    else { setAuthUser(data.user); setAuthView(null); }
+    setAuthLoading(false);
+  };
+
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.href } });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setAuthUser(null); setAuthView(null);
+  };
+
+  // ─── BOOKING STATES ─────────────────────────────────────────────────────
   const [step,         setStep]         = useState(0);
   const [service,      setService]      = useState(null);
   const [duration,     setDuration]     = useState(60);
-  const [duration2,    setDuration2]    = useState(60); // para 2do paseo en modo doble
+  const [duration2,    setDuration2]    = useState(60);
   const [viewMonth,    setViewMonth]    = useState(today.getMonth());
   const [viewYear,     setViewYear]     = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [twoDogs,      setTwoDogs]      = useState(false);
-  const [sharedMatch,  setSharedMatch]  = useState(null); // turno compartido disponible
-  const [form, setForm] = useState({ name:"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
+  const [sharedMatch,  setSharedMatch]  = useState(null);
+  const [form, setForm] = useState({ name: authUser?.user_metadata?.full_name||"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
   const [allBookings,  setAllBookings]  = useState(DEMO_BOOKINGS);
   const [paw,  setPaw]  = useState({ x:0, y:0, show:false });
-  const [rainMode,       setRainMode]       = useState(false); // habilita sábado en reprogramación lluvia
+  const [rainMode,       setRainMode]       = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminView,      setAdminView]      = useState(false);
   const [adminPass,      setAdminPass]      = useState("");
@@ -188,7 +226,8 @@ export default function App() {
   const firstDay    = getFirstDay(viewYear,viewMonth);
 
   // Calcular historial del cliente para descuentos
-  const clientBookings = allBookings.filter(b => b.phone === form.phone);
+  const clientKey = authUser?.email || form.phone;
+  const clientBookings = allBookings.filter(b => b.email === clientKey || b.phone === clientKey);
   const isNewClient = clientBookings.length === 0;
   const now = new Date();
   const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
@@ -239,7 +278,7 @@ export default function App() {
   const reset = () => {
     setStep(0); setService(null); setDuration(60); setDuration2(60); setTwoDogs(false);
     setSelectedDate(null); setSelectedTime(null); setSharedMatch(null); setRainMode(false);
-    setForm({ name:"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
+    setForm({ name: authUser?.user_metadata?.full_name||"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
   };
 
   const css = `
@@ -319,6 +358,15 @@ export default function App() {
           <span style={{display:"inline-block",borderRadius:20,padding:"3px 11px",fontSize:10,fontWeight:800,background:`${C.accent}22`,color:C.accent,border:`1px solid ${C.accent}55`}}>
             {SCHEDULES[ACTIVE_SEASON].label}
           </span>
+          {authUser ? (
+            <button className="btn-s" style={{fontSize:11,padding:"7px 13px"}} onClick={()=>setAuthView("profile")}>
+              👤 {authUser.user_metadata?.full_name?.split(" ")[0] || "Mi perfil"}
+            </button>
+          ) : (
+            <button className="btn-s" style={{fontSize:11,padding:"7px 13px",background:`${C.primary}18`,borderColor:`${C.primary}55`,color:C.primary}} onClick={()=>setAuthView("login")}>
+              🔑 Ingresar
+            </button>
+          )}
           <button className="btn-s" style={{fontSize:11,padding:"7px 13px"}} onClick={()=>setShowAdminModal(true)}>⚙️ Admin</button>
         </div>
       </div>
@@ -439,6 +487,9 @@ export default function App() {
                 <div style={{fontSize:10,color:C.soft,marginTop:4}}>* El precio final puede variar según historial confirmado</div>
               </div>
             )}
+
+            {/* 2 perros — solo en modo paseo simple */}
+            {service==="paseo" && (
               <div className="card" style={{padding:18,marginBottom:14}}>
                 <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:10}}>🐕 ¿Cuántos perros?</div>
                 <div className="toggle-bar">
@@ -866,6 +917,149 @@ export default function App() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AUTH MODAL — Login / Register */}
+      {authView === "login" || authView === "register" ? (
+        <div style={{position:"fixed",inset:0,background:"rgba(58,44,77,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200,padding:20}}>
+          <div className="card ani" style={{padding:30,width:"100%",maxWidth:380}}>
+            <div style={{textAlign:"center",marginBottom:20}}>
+              <div style={{fontSize:36,marginBottom:6}}>🐾</div>
+              <h3 style={{fontFamily:"'Fredoka One',cursive",fontSize:22,color:C.primary}}>
+                {authView==="login" ? "¡Bienvenida de vuelta!" : "Crear cuenta"}
+              </h3>
+              <p style={{fontSize:12,color:C.soft,marginTop:4}}>
+                {authView==="login" ? "Ingresá para ver tus paseos y descuentos" : "Registrate para acceder a tus descuentos"}
+              </p>
+            </div>
+
+            {/* Google */}
+            <button onClick={handleGoogle} style={{width:"100%",padding:"11px 0",borderRadius:12,border:`1.5px solid ${C.light}`,background:C.bgCard,cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:14,color:C.dark,display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:14,transition:"background .2s"}}
+              onMouseEnter={e=>e.target.style.background=C.light} onMouseLeave={e=>e.target.style.background=C.bgCard}>
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width={18} height={18} alt="Google"/>
+              Continuar con Google
+            </button>
+
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <div style={{flex:1,height:1,background:C.light}}/>
+              <span style={{fontSize:11,color:C.soft,fontWeight:700}}>o con email</span>
+              <div style={{flex:1,height:1,background:C.light}}/>
+            </div>
+
+            <div style={{display:"grid",gap:10}}>
+              {authView==="register" && (
+                <input className="inp" placeholder="Tu nombre completo" value={authName} onChange={e=>setAuthName(e.target.value)}/>
+              )}
+              <input className="inp" type="email" placeholder="Email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)}/>
+              <input className="inp" type="password" placeholder="Contraseña" value={authPass} onChange={e=>setAuthPass(e.target.value)}
+                onKeyDown={e=>{ if(e.key==="Enter") authView==="login"?handleLogin():handleRegister(); }}/>
+            </div>
+
+            {authError && (
+              <div style={{marginTop:10,padding:"8px 12px",borderRadius:10,background:`${C.secondary}18`,border:`1px solid ${C.secondary}44`,fontSize:12,color:C.secondary,fontWeight:700}}>
+                ⚠️ {authError}
+              </div>
+            )}
+
+            {/* Descuento nuevo cliente */}
+            {authView==="register" && (
+              <div style={{marginTop:10,padding:"8px 12px",borderRadius:10,background:`${C.accent}15`,border:`1px solid ${C.accent}44`,fontSize:12,color:C.dark}}>
+                🎉 <strong>¡10% de descuento</strong> en tu primer paseo al registrarte!
+              </div>
+            )}
+
+            <button className="btn-p" style={{width:"100%",marginTop:14,padding:"12px 0"}}
+              disabled={authLoading}
+              onClick={authView==="login"?handleLogin:handleRegister}>
+              {authLoading ? "Cargando..." : authView==="login" ? "Ingresar" : "Crear cuenta"}
+            </button>
+
+            <div style={{textAlign:"center",marginTop:14,fontSize:12,color:C.soft}}>
+              {authView==="login" ? (
+                <>¿No tenés cuenta? <span style={{color:C.primary,fontWeight:800,cursor:"pointer"}} onClick={()=>{setAuthView("register");setAuthError("");}}>Registrate</span></>
+              ) : (
+                <>¿Ya tenés cuenta? <span style={{color:C.primary,fontWeight:800,cursor:"pointer"}} onClick={()=>{setAuthView("login");setAuthError("");}}>Ingresá</span></>
+              )}
+            </div>
+
+            <div style={{textAlign:"center",marginTop:10}}>
+              <span style={{fontSize:12,color:C.soft,cursor:"pointer"}} onClick={()=>{setAuthView(null);setAuthError("");}}>✕ Cancelar</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* PERFIL DE USUARIO */}
+      {authView==="profile" && authUser && (
+        <div style={{position:"fixed",inset:0,background:C.bg,zIndex:200,overflowY:"auto",padding:"20px 16px 40px"}}>
+          <div style={{maxWidth:480,margin:"0 auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:24}}>
+              <div style={{fontFamily:"'Fredoka One',cursive",fontSize:24,color:C.primary}}>👤 Mi perfil</div>
+              <button className="btn-s" onClick={()=>setAuthView(null)}>✕ Cerrar</button>
+            </div>
+
+            {/* Info del usuario */}
+            <div className="card" style={{padding:22,marginBottom:18}}>
+              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:16}}>
+                <div style={{width:54,height:54,borderRadius:"50%",background:`linear-gradient(135deg,${C.primary},${C.secondary})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:C.white}}>
+                  {authUser.user_metadata?.full_name?.[0]?.toUpperCase() || "🐾"}
+                </div>
+                <div>
+                  <div style={{fontWeight:900,fontSize:17,color:C.dark}}>{authUser.user_metadata?.full_name || "Sin nombre"}</div>
+                  <div style={{fontSize:12,color:C.soft}}>{authUser.email}</div>
+                </div>
+              </div>
+
+              {/* Estado descuento */}
+              <div style={{padding:"12px 14px",borderRadius:12,background: isNewClient?`${C.accent}18`:`${C.primary}12`,border:`1px solid ${isNewClient?C.accent:C.primary}44`}}>
+                {isNewClient ? (
+                  <div style={{fontSize:13,color:C.dark}}>
+                    🎉 <strong style={{color:C.accent}}>¡Sos clienta nueva!</strong> Tu próximo paseo tiene <strong>10% de descuento</strong>
+                  </div>
+                ) : (weeklyCount >= 2 || monthlyCount >= 11) ? (
+                  <div style={{fontSize:13,color:C.dark}}>
+                    ⭐ <strong style={{color:C.primary}}>¡Clienta frecuente!</strong> Tenés <strong>15% de descuento</strong> aplicado
+                  </div>
+                ) : (
+                  <div style={{fontSize:13,color:C.soft}}>
+                    🐾 Paseos este mes: <strong>{monthlyCount}</strong> · Esta semana: <strong>{weeklyCount}</strong>
+                    <br/><span style={{fontSize:11}}>Con 3+ paseos/semana o 12+/mes obtenés 15% de descuento</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Historial de paseos */}
+            <div style={{fontFamily:"'Fredoka One',cursive",fontSize:18,color:C.dark,marginBottom:12}}>🦮 Mis paseos</div>
+            {clientBookings.length === 0 ? (
+              <div style={{textAlign:"center",padding:36,color:C.soft}}>
+                <div style={{fontSize:40,marginBottom:10}}>🐾</div>
+                <div style={{fontWeight:700}}>Todavía no tenés paseos agendados</div>
+                <button className="btn-p" style={{marginTop:16}} onClick={()=>setAuthView(null)}>¡Agendá tu primer turno!</button>
+              </div>
+            ) : (
+              clientBookings.slice().reverse().map(b=>{
+                const svc = SERVICES.find(s=>s.id===b.service);
+                return (
+                  <div key={b.id} className="bk-row" style={{borderLeftColor:svc?.color}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <span style={{fontWeight:800,color:svc?.color,fontSize:13}}>{svc?.icon} {svc?.label}</span>
+                      <span style={{color:C.soft,fontSize:12}}>{b.date?.split("-").reverse().join("/")} · {b.time}</span>
+                    </div>
+                    <div style={{fontSize:12,color:C.dark}}>🐶 {b.dog}{b.dog2?` + ${b.dog2}`:""} · 📍 {b.barrio}</div>
+                    <div style={{fontSize:12,color:C.soft}}>⏱ {b.duration} min</div>
+                  </div>
+                );
+              })
+            )}
+
+            <div style={{marginTop:22,textAlign:"center"}}>
+              <button className="btn-s" style={{color:C.secondary,borderColor:`${C.secondary}55`}} onClick={handleLogout}>
+                🚪 Cerrar sesión
+              </button>
+            </div>
           </div>
         </div>
       )}
