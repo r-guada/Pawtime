@@ -33,11 +33,58 @@ const SERVICES = [
 ];
 
 const BARRIOS = [
-  "Abilene", "Alberdi", "Banda Norte", "Castelli 1", "Centro", "Fénix", "Industrial", "Macrocentro", "Pizarro", "Villa Dalcar", "Otro (especificar en notas)"
+  "Abilene","Alberdi","Banda Norte","Bimaco","Buena Vista",
+  "Centro","Cispren","Fénix","General Paz","Golf Club",
+  "Jardín","Las Quintas","Obrero","Universitario","Villa Dalcar",
+  "Otro (especificar en notas)"
 ];
 
 const DAYS_ES   = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
 const MONTHS_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+// ─── PRECIOS ──────────────────────────────────────────────────────────────
+const PRECIOS_BASE = { 30: 6500, 60: 8000, 90: 12000 };
+
+function calcularPrecio({ service, duration, duration2, twoDogs, isNewClient, weeklyCount, monthlyCount }) {
+  let precio1 = PRECIOS_BASE[duration] || 8000;
+  let precio2 = 0;
+  let descuentos = [];
+
+  if (service === "doble") {
+    precio2 = PRECIOS_BASE[duration2] || 8000;
+    const descP2 = Math.round(precio2 * 0.20);
+    precio2 -= descP2;
+    descuentos.push({ label: "20% desc. 2do perro", monto: -descP2 });
+  } else if (twoDogs) {
+    precio2 = PRECIOS_BASE[duration] || 8000;
+    const descP2 = Math.round(precio2 * 0.20);
+    precio2 -= descP2;
+    descuentos.push({ label: "20% desc. 2do perro", monto: -descP2 });
+  }
+
+  let subtotal = precio1 + precio2;
+
+  if (isNewClient) {
+    const d = Math.round(subtotal * 0.10);
+    subtotal -= d;
+    descuentos.push({ label: "10% primer paseo (cliente nuevo 🎉)", monto: -d });
+  }
+
+  const esFrecuente = (weeklyCount >= 2) || (monthlyCount >= 11);
+  if (esFrecuente && !isNewClient) {
+    const d = Math.round(subtotal * 0.15);
+    subtotal -= d;
+    descuentos.push({ label: "15% desc. cliente frecuente ⭐", monto: -d });
+  }
+
+  return { precio1, precio2, subtotal, descuentos };
+}
+
+function formatPeso(n) { return `$${n.toLocaleString("es-AR")}`; }
+
+// Días sin turno: sábado (6) y domingo (0)
+// En reprogramaciones por lluvia se habilita sábado a la mañana
+const RAIN_SAT_BLOCKS = [{ label: "Mañana", from: "08:00", to: "11:00" }];
 
 // Colores de la paleta
 const C = {
@@ -116,6 +163,7 @@ export default function App() {
   const [form, setForm] = useState({ name:"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
   const [allBookings,  setAllBookings]  = useState(DEMO_BOOKINGS);
   const [paw,  setPaw]  = useState({ x:0, y:0, show:false });
+  const [rainMode,       setRainMode]       = useState(false); // habilita sábado en reprogramación lluvia
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [adminView,      setAdminView]      = useState(false);
   const [adminPass,      setAdminPass]      = useState("");
@@ -133,10 +181,22 @@ export default function App() {
     sharedBooking: selectedDate ? dayBookings.find(b => b.sharedOk && b.time === t) : null,
   }));
 
-  const isPast  = (day) => new Date(viewYear,viewMonth,day) < new Date(today.getFullYear(),today.getMonth(),today.getDate());
-  const isToday = (day) => day===today.getDate() && viewMonth===today.getMonth() && viewYear===today.getFullYear();
+  const isPast     = (day) => new Date(viewYear,viewMonth,day) < new Date(today.getFullYear(),today.getMonth(),today.getDate());
+  const isToday    = (day) => day===today.getDate() && viewMonth===today.getMonth() && viewYear===today.getFullYear();
+  const isWeekend  = (day) => { const dow = new Date(viewYear,viewMonth,day).getDay(); return dow===0 || (dow===6 && !rainMode); };
   const daysInMonth = getDaysInMonth(viewYear,viewMonth);
   const firstDay    = getFirstDay(viewYear,viewMonth);
+
+  // Calcular historial del cliente para descuentos
+  const clientBookings = allBookings.filter(b => b.phone === form.phone);
+  const isNewClient = clientBookings.length === 0;
+  const now = new Date();
+  const startOfWeek = new Date(now); startOfWeek.setDate(now.getDate() - now.getDay());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weeklyCount  = clientBookings.filter(b => new Date(b.date) >= startOfWeek).length;
+  const monthlyCount = clientBookings.filter(b => new Date(b.date) >= startOfMonth).length;
+
+  const pricing = calcularPrecio({ service, duration, duration2, twoDogs: twoDogs || service==="doble", isNewClient, weeklyCount, monthlyCount });
 
   // Hora de fin del primer paseo en modo doble
   const dobleEndTime = selectedTime ? minToTime(timeToMin(selectedTime) + duration) : null;
@@ -178,7 +238,7 @@ export default function App() {
 
   const reset = () => {
     setStep(0); setService(null); setDuration(60); setDuration2(60); setTwoDogs(false);
-    setSelectedDate(null); setSelectedTime(null); setSharedMatch(null);
+    setSelectedDate(null); setSelectedTime(null); setSharedMatch(null); setRainMode(false);
     setForm({ name:"", phone:"", dog:"", dog2:"", breed:"", breed2:"", barrio:"", notes:"", sharedOk:false });
   };
 
@@ -345,8 +405,40 @@ export default function App() {
               </div>
             )}
 
-            {/* 2 perros — solo en modo paseo simple */}
-            {service==="paseo" && (
+            {/* Precios */}
+            <div className="card" style={{padding:16,marginBottom:14}}>
+              <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:10}}>💰 Precios</div>
+              <div style={{display:"grid",gap:6}}>
+                {DURATIONS.map(d=>(
+                  <div key={d.value} style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"6px 0",borderBottom:`1px solid ${C.light}`}}>
+                    <span style={{color:C.soft,fontWeight:700}}>{d.icon} {d.label}</span>
+                    <span style={{fontWeight:800,color:C.dark}}>{formatPeso(PRECIOS_BASE[d.value])}</span>
+                  </div>
+                ))}
+                <div style={{fontSize:11,color:C.soft,marginTop:6,lineHeight:1.7}}>
+                  🐕 2do perro: <strong>20% de descuento</strong><br/>
+                  🎉 Primer paseo (cliente nuevo): <strong>10% de descuento</strong><br/>
+                  ⭐ 3+ paseos/semana o 12+/mes: <strong>15% de descuento</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Preview precio según selección actual */}
+            {(service==="paseo"||service==="doble") && (
+              <div style={{marginBottom:14,padding:"12px 16px",borderRadius:14,background:`${C.primary}12`,border:`1px solid ${C.primary}33`}}>
+                <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:6}}>🧮 Estimación para tu turno</div>
+                {pricing.descuentos.length > 0 && pricing.descuentos.map((d,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.soft}}>
+                    <span>{d.label}</span><span style={{color:C.secondary}}>{formatPeso(d.monto)}</span>
+                  </div>
+                ))}
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:900,color:C.dark,marginTop:6,paddingTop:6,borderTop:`1px solid ${C.light}`}}>
+                  <span>Total estimado</span>
+                  <span style={{color:C.primary}}>{formatPeso(pricing.subtotal)}</span>
+                </div>
+                <div style={{fontSize:10,color:C.soft,marginTop:4}}>* El precio final puede variar según historial confirmado</div>
+              </div>
+            )}
               <div className="card" style={{padding:18,marginBottom:14}}>
                 <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:10}}>🐕 ¿Cuántos perros?</div>
                 <div className="toggle-bar">
@@ -413,10 +505,12 @@ export default function App() {
                   const day=i+1;
                   const d=formatDate(viewYear,viewMonth,day);
                   const bkCount=allBookings.filter(b=>b.date===d).length;
+                  const weekend = isWeekend(day);
                   return (
                     <div key={day}
-                      className={`day ${isPast(day)?"past":""} ${isToday(day)?"today":""} ${selectedDate===d?"sel-d":""} ${bkCount>0&&!isPast(day)?"has-b":""}`}
-                      onClick={()=>{ if(isPast(day))return; setSelectedDate(d); setSelectedTime(null); setSharedMatch(null); setStep(3); }}
+                      className={`day ${isPast(day)||weekend?"past":""} ${isToday(day)?"today":""} ${selectedDate===d?"sel-d":""} ${bkCount>0&&!isPast(day)&&!weekend?"has-b":""}`}
+                      style={weekend?{opacity:.2,cursor:"not-allowed"}:{}}
+                      onClick={()=>{ if(isPast(day)||weekend)return; setSelectedDate(d); setSelectedTime(null); setSharedMatch(null); setStep(3); }}
                     >{day}</div>
                   );
                 })}
@@ -424,6 +518,18 @@ export default function App() {
               <div style={{marginTop:12,display:"flex",gap:16,fontSize:11,color:C.soft}}>
                 <span>🟣 Hoy</span>
                 <span style={{color:C.accent}}>● Tiene turnos</span>
+                <span style={{opacity:.4}}>No disponible: sáb/dom</span>
+              </div>
+            </div>
+
+            {/* Modo reprogramación por lluvia */}
+            <div style={{marginBottom:14,padding:"12px 16px",borderRadius:14,background:rainMode?`${C.secondary}18`:C.light,border:`1px solid ${rainMode?C.secondary:C.soft}44`,display:"flex",alignItems:"center",gap:12}}>
+              <div className={`chk ${rainMode?"on":""}`} style={rainMode?{background:C.secondary,borderColor:C.secondary}:{}} onClick={()=>setRainMode(r=>!r)}>
+                {rainMode && <span style={{fontSize:12,fontWeight:900,color:C.white}}>✓</span>}
+              </div>
+              <div>
+                <div style={{fontWeight:800,fontSize:13,color:rainMode?C.secondary:C.dark}}>🌧️ Reprogramación por lluvia</div>
+                <div style={{fontSize:11,color:C.soft}}>Habilita turnos el sábado a la mañana (8:00–11:00)</div>
               </div>
             </div>
 
@@ -610,7 +716,7 @@ export default function App() {
               Te esperamos con {form.dog}{(twoDogs||service==="doble")&&form.dog2?` y ${form.dog2}`:""} 🐾
             </p>
 
-            <div className="card" style={{padding:22,textAlign:"left",marginBottom:26}}>
+            <div className="card" style={{padding:22,textAlign:"left",marginBottom:16}}>
               {[
                 ["Servicio",  `${serviceObj?.icon} ${serviceObj?.label}`],
                 ["Duración",  service==="doble"?`${duration} min + ${duration2} min`:(durationObj?.label)],
@@ -631,6 +737,31 @@ export default function App() {
                   <span style={{fontWeight:800,fontSize:13,textAlign:"right",maxWidth:"62%",color:C.dark}}>{v}</span>
                 </div>
               ))}
+            </div>
+
+            {/* Resumen de precio */}
+            <div className="card" style={{padding:18,textAlign:"left",marginBottom:16,border:`1px solid ${C.primary}44`}}>
+              <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:10}}>💰 Resumen de pago</div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"6px 0",borderBottom:`1px solid ${C.light}`}}>
+                <span style={{color:C.soft}}>Paseo base</span>
+                <span style={{fontWeight:700,color:C.dark}}>{formatPeso(pricing.precio1)}</span>
+              </div>
+              {pricing.precio2 > 0 && (
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13,padding:"6px 0",borderBottom:`1px solid ${C.light}`}}>
+                  <span style={{color:C.soft}}>2do perro (con desc.)</span>
+                  <span style={{fontWeight:700,color:C.dark}}>{formatPeso(pricing.precio2)}</span>
+                </div>
+              )}
+              {pricing.descuentos.map((d,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"5px 0",borderBottom:`1px solid ${C.light}`}}>
+                  <span style={{color:C.accent}}>{d.label}</span>
+                  <span style={{fontWeight:700,color:C.accent}}>{formatPeso(d.monto)}</span>
+                </div>
+              ))}
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:16,fontWeight:900,padding:"10px 0 0"}}>
+                <span style={{color:C.dark}}>Total</span>
+                <span style={{color:C.primary}}>{formatPeso(pricing.subtotal)}</span>
+              </div>
             </div>
 
             {/* Recordatorio política cancelación */}
