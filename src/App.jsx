@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from './supabase';
 
 const ACTIVE_SEASON = "verano";
@@ -187,6 +187,34 @@ export default function App() {
     await supabase.auth.signOut();
     setAuthUser(null); setAuthView(null);
   };
+
+  // Detectar sesión al cargar (necesario para OAuth redirect como Google)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user) {
+        setAuthUser(data.session.user);
+        setForm(f => ({
+          ...f,
+          name:  data.session.user.user_metadata?.full_name || f.name,
+          phone: data.session.user.user_metadata?.phone || f.phone,
+        }));
+      }
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setAuthUser(session.user);
+        setForm(f => ({
+          ...f,
+          name:  session.user.user_metadata?.full_name || f.name,
+          phone: session.user.user_metadata?.phone || f.phone,
+        }));
+        setAuthView(null);
+      } else {
+        setAuthUser(null);
+      }
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   // ─── BOOKING STATES ─────────────────────────────────────────────────────
   const [step,         setStep]         = useState(0);
@@ -1071,7 +1099,7 @@ export default function App() {
                       <span style={{fontSize:22}}>🐕</span>
                       <div>
                         <div style={{fontWeight:800,fontSize:14,color:C.dark}}>{ultimo.dog}</div>
-                        {ultimo.breed && <div style={{fontSize:12,color:C.soft}}>{ultimo.breed}</div>} 
+                        {ultimo.breed && <div style={{fontSize:12,color:C.soft}}>{ultimo.breed}</div>}
                         {ultimo.notes && <div style={{fontSize:11,color:C.soft,marginTop:2}}>📝 {ultimo.notes}</div>}
                       </div>
                     </div>
@@ -1087,9 +1115,7 @@ export default function App() {
                   </div>
                 </div>
               );
-            })()}
-
-            {/* Historial de paseos */}
+            })()}{/* Historial de paseos */}
             <div style={{fontFamily:"'Fredoka One',cursive",fontSize:18,color:C.dark,marginBottom:12}}>🦮 Mis paseos</div>
             {clientBookings.length === 0 ? (
               <div style={{textAlign:"center",padding:36,color:C.soft}}>
