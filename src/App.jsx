@@ -147,6 +147,412 @@ const DEMO_BOOKINGS = [
   { id:2, service:"paseo", date:"2026-03-10", time:"08:30", duration:60, name:"Carlos Ruiz", phone:"358 765-4321", dog:"Max", dog2:"Coco", breed:"Golden", breed2:"Beagle", barrio:"Banda Norte", notes:"Max no quiere correa", sharedOk:false },
 ];
 
+// ─── ADMIN: TURNOS ────────────────────────────────────────────────────────
+function AdminTurnos({ allBookings, setAllBookings, today, C, SERVICES, DURATIONS, formatPeso }) {
+  const [filter, setFilter]     = useState("todos"); // todos | hoy | pendiente | completado | cancelado
+  const [search, setSearch]     = useState("");
+  const [expandId, setExpandId] = useState(null);
+  const [adminNote, setAdminNote] = useState("");
+
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate()+1);
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,"0")}-${String(tomorrow.getDate()).padStart(2,"0")}`;
+
+  const filtered = allBookings.filter(b => {
+    if (filter === "hoy"       && b.date !== todayStr)    return false;
+    if (filter === "manana"    && b.date !== tomorrowStr)  return false;
+    if (filter === "pendiente" && b.status !== undefined && b.status !== "pendiente") return false;
+    if (filter === "completado"&& b.status !== "completado") return false;
+    if (filter === "cancelado" && b.status !== "cancelado")  return false;
+    if (search && !`${b.name} ${b.dog} ${b.phone} ${b.barrio}`.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  }).sort((a,b) => a.date > b.date ? -1 : 1);
+
+  const setStatus = (id, status) => setAllBookings(prev => prev.map(b => b.id===id ? {...b, status} : b));
+  const saveNote  = (id) => { setAllBookings(prev => prev.map(b => b.id===id ? {...b, adminNote} : b)); setExpandId(null); };
+
+  const countHoy  = allBookings.filter(b=>b.date===todayStr).length;
+  const countMan  = allBookings.filter(b=>b.date===tomorrowStr).length;
+  const countComp = allBookings.filter(b=>b.status==="completado").length;
+  const countCanc = allBookings.filter(b=>b.status==="cancelado").length;
+
+  return (
+    <div>
+      {/* Resumen rápido */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:18}}>
+        {[["Hoy",countHoy,C.primary],["Mañana",countMan,C.secondary],["Completados",countComp,C.accent],["Cancelados",countCanc,"#e88"]].map(([label,count,color])=>(
+          <div key={label} style={{background:C.bgCard,border:`1px solid ${C.light}`,borderRadius:14,padding:"12px 8px",textAlign:"center"}}>
+            <div style={{fontWeight:900,fontSize:20,color}}>{count}</div>
+            <div style={{fontSize:10,color:C.soft,fontWeight:700}}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Búsqueda */}
+      <input className="inp" placeholder="🔍 Buscar por nombre, perro, teléfono..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:12}}/>
+
+      {/* Filtros */}
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+        {[["todos","Todos"],["hoy","Hoy 🌟"],["manana","Mañana"],["pendiente","Pendientes"],["completado","Completados ✅"],["cancelado","Cancelados ❌"]].map(([val,label])=>(
+          <button key={val} className={filter===val?"btn-p":"btn-s"} style={{fontSize:11,padding:"6px 12px"}} onClick={()=>setFilter(val)}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{color:C.soft,fontSize:12,marginBottom:12}}>{filtered.length} turno(s)</div>
+
+      {filtered.length===0 && (
+        <div style={{textAlign:"center",color:C.soft,padding:40}}>
+          <div style={{fontSize:44,marginBottom:10}}>📭</div>No hay turnos
+        </div>
+      )}
+
+      {filtered.map(b=>{
+        const svc = SERVICES.find(s=>s.id===b.service);
+        const isToday = b.date===todayStr;
+        const statusColor = b.status==="completado" ? C.accent : b.status==="cancelado" ? "#e88" : C.primary;
+        const expanded = expandId===b.id;
+        return (
+          <div key={b.id} style={{marginBottom:10,borderRadius:16,border:`1.5px solid ${isToday?C.primary:C.light}`,background:C.bgCard,overflow:"hidden"}}>
+            {/* Header del turno */}
+            <div style={{padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",background:isToday?`${C.primary}08`:C.bgCard}} onClick={()=>setExpandId(expanded?null:b.id)}>
+              <div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                  <span style={{fontWeight:800,color:svc?.color,fontSize:13}}>{svc?.icon} {svc?.label}</span>
+                  {isToday && <span style={{fontSize:10,fontWeight:800,color:C.primary,background:`${C.primary}18`,borderRadius:10,padding:"1px 7px"}}>HOY</span>}
+                  <span style={{fontSize:10,fontWeight:800,color:statusColor,background:`${statusColor}18`,borderRadius:10,padding:"1px 7px"}}>
+                    {b.status==="completado"?"✅ Completado":b.status==="cancelado"?"❌ Cancelado":"⏳ Pendiente"}
+                  </span>
+                </div>
+                <div style={{fontSize:12,color:C.soft}}>📅 {b.date?.split("-").reverse().join("/")} · {b.time} · 👤 {b.name}</div>
+              </div>
+              <span style={{color:C.soft,fontSize:18}}>{expanded?"∧":"∨"}</span>
+            </div>
+
+            {/* Detalle expandido */}
+            {expanded && (
+              <div style={{padding:"0 14px 14px",borderTop:`1px solid ${C.light}`}}>
+                <div style={{display:"grid",gap:4,marginTop:12,fontSize:12,color:C.dark}}>
+                  <div>📱 {b.phone} · 📍 {b.barrio}</div>
+                  <div>⏱ {b.duration} min · 🐶 {b.dog}{b.breed?` (${b.breed})`:""}{b.dog2?` + ${b.dog2}${b.breed2?` (${b.breed2})`:""}`:""}  </div>
+                  {b.notes && <div style={{color:C.soft}}>💬 {b.notes}</div>}
+                  {b.adminNote && <div style={{color:C.primary,fontStyle:"italic"}}>📌 Nota admin: {b.adminNote}</div>}
+                </div>
+
+                {/* Acciones */}
+                <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap"}}>
+                  <button className="btn-s" style={{fontSize:11,padding:"6px 12px",color:C.accent,borderColor:`${C.accent}55`}}
+                    onClick={()=>setStatus(b.id,"completado")}>✅ Completado</button>
+                  <button className="btn-s" style={{fontSize:11,padding:"6px 12px",color:"#e88",borderColor:"#e8855"}}
+                    onClick={()=>setStatus(b.id,"cancelado")}>❌ Cancelar</button>
+                  <button className="btn-s" style={{fontSize:11,padding:"6px 12px"}}
+                    onClick={()=>setStatus(b.id,"pendiente")}>⏳ Pendiente</button>
+                  <a href={`https://wa.me/54${b.phone?.replace(/\D/g,"")}`} target="_blank" rel="noreferrer"
+                    style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"6px 12px",borderRadius:50,background:`${C.accent}18`,border:`1px solid ${C.accent}55`,color:C.dark,textDecoration:"none",fontWeight:700,fontFamily:"'Nunito',sans-serif"}}>
+                    💬 WhatsApp
+                  </a>
+                </div>
+
+                {/* Nota admin */}
+                <div style={{marginTop:10}}>
+                  <input className="inp" style={{fontSize:12,padding:"8px 12px"}} placeholder="📌 Agregar nota interna..."
+                    defaultValue={b.adminNote||""}
+                    onChange={e=>setAdminNote(e.target.value)}/>
+                  <button className="btn-s" style={{marginTop:6,fontSize:11,padding:"6px 14px"}} onClick={()=>saveNote(b.id)}>Guardar nota</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── ADMIN: CLIENTES ──────────────────────────────────────────────────────
+function AdminClientes({ allBookings, setAllBookings, C, SERVICES, formatPeso, calcularPrecio, DURATIONS }) {
+  const [search, setSearch] = useState("");
+  const [expandPhone, setExpandPhone] = useState(null);
+  const [clientNote, setClientNote] = useState("");
+
+  const now = new Date();
+  const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate()-now.getDay());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Agrupar por cliente (por teléfono)
+  const clientMap = {};
+  allBookings.forEach(b => {
+    const key = b.phone || "sin-telefono";
+    if (!clientMap[key]) clientMap[key] = { name: b.name, phone: b.phone, bookings: [], adminNote: b.clientNote||"" };
+    clientMap[key].bookings.push(b);
+  });
+
+  const clients = Object.values(clientMap).filter(c =>
+    !search || `${c.name} ${c.phone}`.toLowerCase().includes(search.toLowerCase())
+  ).sort((a,b) => b.bookings.length - a.bookings.length);
+
+  const saveClientNote = (phone) => {
+    setAllBookings(prev => prev.map(b => b.phone===phone ? {...b, clientNote} : b));
+    setExpandPhone(null);
+  };
+
+  return (
+    <div>
+      <input className="inp" placeholder="🔍 Buscar cliente..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:16}}/>
+      <div style={{color:C.soft,fontSize:12,marginBottom:12}}>{clients.length} cliente(s)</div>
+
+      {clients.map(c => {
+        const weekly  = c.bookings.filter(b=>new Date(b.date)>=startOfWeek).length;
+        const monthly = c.bookings.filter(b=>new Date(b.date)>=startOfMonth).length;
+        const isNew   = c.bookings.length === 1;
+        const isFrecuente = weekly>=3 || monthly>=12;
+        const expanded = expandPhone===c.phone;
+        const lastB = c.bookings[c.bookings.length-1];
+
+        return (
+          <div key={c.phone} style={{marginBottom:10,borderRadius:16,border:`1.5px solid ${C.light}`,background:C.bgCard,overflow:"hidden"}}>
+            <div style={{padding:"12px 14px",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}} onClick={()=>setExpandPhone(expanded?null:c.phone)}>
+              <div>
+                <div style={{fontWeight:800,fontSize:14,color:C.dark,marginBottom:3}}>{c.name}</div>
+                <div style={{fontSize:12,color:C.soft}}>📱 {c.phone} · {c.bookings.length} paseo(s)</div>
+                <div style={{display:"flex",gap:6,marginTop:4,flexWrap:"wrap"}}>
+                  {isNew && <span style={{fontSize:10,fontWeight:800,color:C.accent,background:`${C.accent}18`,borderRadius:10,padding:"1px 7px"}}>🎉 Nueva</span>}
+                  {isFrecuente && <span style={{fontSize:10,fontWeight:800,color:C.primary,background:`${C.primary}18`,borderRadius:10,padding:"1px 7px"}}>⭐ Frecuente</span>}
+                  {lastB?.dog && <span style={{fontSize:10,color:C.soft}}>🐶 {lastB.dog}{lastB.dog2?` + ${lastB.dog2}`:""}</span>}
+                </div>
+              </div>
+              <span style={{color:C.soft,fontSize:18}}>{expanded?"∧":"∨"}</span>
+            </div>
+
+            {expanded && (
+              <div style={{padding:"0 14px 14px",borderTop:`1px solid ${C.light}`}}>
+                <div style={{fontSize:12,color:C.dark,marginTop:12,display:"grid",gap:4}}>
+                  <div>📍 {lastB?.barrio}</div>
+                  <div>🐶 {lastB?.dog}{lastB?.breed?` (${lastB.breed})`:""}{lastB?.dog2?` + ${lastB.dog2}${lastB?.breed2?` (${lastB.breed2})`:""}`:""}  </div>
+                  {lastB?.notes && <div style={{color:C.soft}}>💬 {lastB.notes}</div>}
+                  <div style={{marginTop:4}}>
+                    📊 Esta semana: <strong>{weekly}</strong> · Este mes: <strong>{monthly}</strong>
+                  </div>
+                  <div style={{padding:"8px 12px",borderRadius:10,background:isFrecuente?`${C.primary}12`:isNew?`${C.accent}12`:C.light,fontSize:11,marginTop:4}}>
+                    {isNew?"🎉 Descuento 10% en su próximo paseo (cliente nueva)":isFrecuente?"⭐ Descuento 15% activo (cliente frecuente)":"Sin descuento especial activo"}
+                  </div>
+                </div>
+
+                {/* Historial */}
+                <div style={{marginTop:12,fontWeight:800,fontSize:12,color:C.soft,marginBottom:6}}>HISTORIAL</div>
+                {c.bookings.slice().reverse().map(b=>{
+                  const svc=SERVICES.find(s=>s.id===b.service);
+                  return (
+                    <div key={b.id} style={{fontSize:11,color:C.soft,padding:"5px 0",borderBottom:`1px solid ${C.light}`}}>
+                      {svc?.icon} {b.date?.split("-").reverse().join("/")} · {b.time} · {b.duration}min
+                      {b.status==="completado"&&" ✅"}{b.status==="cancelado"&&" ❌"}
+                    </div>
+                  );
+                })}
+
+                {/* Nota del cliente */}
+                <div style={{marginTop:12}}>
+                  <input className="inp" style={{fontSize:12,padding:"8px 12px"}} placeholder="📌 Nota interna del cliente..."
+                    defaultValue={c.bookings[0]?.clientNote||""}
+                    onChange={e=>setClientNote(e.target.value)}/>
+                  <div style={{display:"flex",gap:8,marginTop:6}}>
+                    <button className="btn-s" style={{fontSize:11,padding:"6px 14px"}} onClick={()=>saveClientNote(c.phone)}>Guardar nota</button>
+                    <a href={`https://wa.me/54${c.phone?.replace(/\D/g,"")}`} target="_blank" rel="noreferrer"
+                      style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11,padding:"6px 12px",borderRadius:50,background:`${C.accent}18`,border:`1px solid ${C.accent}55`,color:C.dark,textDecoration:"none",fontWeight:700,fontFamily:"'Nunito',sans-serif"}}>
+                      💬 WhatsApp
+                    </a>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── ADMIN: CONFIG ────────────────────────────────────────────────────────
+function AdminConfig({ allBookings, setAllBookings, C, SCHEDULES, ACTIVE_SEASON }) {
+  const [blockedDates, setBlockedDates] = useState([]);
+  const [newBlock, setNewBlock]         = useState("");
+  const [newBlockReason, setNewBlockReason] = useState("");
+  const [prices, setPrices]             = useState({30:6500,60:8000,90:12000});
+  const [season, setSeason]             = useState(ACTIVE_SEASON);
+  const [saved, setSaved]               = useState(false);
+
+  const addBlock = () => {
+    if (!newBlock) return;
+    setBlockedDates(prev => [...prev, { date: newBlock, reason: newBlockReason||"Día bloqueado" }]);
+    setNewBlock(""); setNewBlockReason("");
+  };
+
+  const showSaved = () => { setSaved(true); setTimeout(()=>setSaved(false), 2000); };
+
+  return (
+    <div style={{display:"grid",gap:18}}>
+      {/* Temporada */}
+      <div className="card" style={{padding:18}}>
+        <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:12}}>🌡️ Temporada activa</div>
+        <div className="toggle-bar">
+          {Object.entries(SCHEDULES).map(([key,sch])=>(
+            <div key={key} className={`tog-opt ${season===key?"act":""}`} onClick={()=>setSeason(key)}>{sch.label}</div>
+          ))}
+        </div>
+        <div style={{marginTop:10,fontSize:11,color:C.soft}}>
+          Horarios {SCHEDULES[season].label}: {SCHEDULES[season].blocks.map(b=>`${b.label} ${b.from}–${b.to}`).join(" · ")}
+        </div>
+        <div style={{marginTop:8,padding:"8px 12px",borderRadius:10,background:`${C.secondary}15`,fontSize:11,color:C.soft}}>
+          ⚠️ Para aplicar el cambio de temporada, modificá <code>ACTIVE_SEASON</code> en el código y subí los cambios.
+        </div>
+      </div>
+
+      {/* Precios */}
+      <div className="card" style={{padding:18}}>
+        <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:12}}>💰 Precios base</div>
+        {[{value:30,label:"30/45 min"},{value:60,label:"1 hora"},{value:90,label:"1h 30min"}].map(d=>(
+          <div key={d.value} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <span style={{fontSize:13,color:C.dark,fontWeight:700}}>{d.label}</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{fontSize:12,color:C.soft}}>$</span>
+              <input type="number" className="inp" style={{width:100,padding:"6px 10px",fontSize:13,textAlign:"right"}}
+                value={prices[d.value]} onChange={e=>setPrices(p=>({...p,[d.value]:Number(e.target.value)}))}/>
+            </div>
+          </div>
+        ))}
+        <div style={{fontSize:11,color:C.soft,marginTop:4,padding:"8px 12px",borderRadius:10,background:`${C.secondary}15`}}>
+          ⚠️ Para aplicar los precios, modificá <code>PRECIOS_BASE</code> en el código y subí los cambios.
+        </div>
+      </div>
+
+      {/* Días bloqueados */}
+      <div className="card" style={{padding:18}}>
+        <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:12}}>🚫 Bloquear días</div>
+        <div style={{display:"grid",gap:8,marginBottom:12}}>
+          <input type="date" className="inp" value={newBlock} onChange={e=>setNewBlock(e.target.value)} style={{fontSize:13}}/>
+          <input className="inp" placeholder="Motivo (ej: Vacaciones, Feriado...)" value={newBlockReason} onChange={e=>setNewBlockReason(e.target.value)} style={{fontSize:13}}/>
+          <button className="btn-p" style={{padding:"10px 0"}} onClick={addBlock}>+ Bloquear día</button>
+        </div>
+        {blockedDates.length===0 ? (
+          <div style={{fontSize:12,color:C.soft,textAlign:"center",padding:"10px 0"}}>No hay días bloqueados</div>
+        ) : blockedDates.map((d,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderRadius:10,background:C.light,marginBottom:6}}>
+            <div>
+              <span style={{fontWeight:800,fontSize:12,color:C.dark}}>{d.date.split("-").reverse().join("/")}</span>
+              <span style={{fontSize:11,color:C.soft,marginLeft:8}}>{d.reason}</span>
+            </div>
+            <button className="btn-s" style={{fontSize:11,padding:"4px 10px",color:"#e88"}} onClick={()=>setBlockedDates(prev=>prev.filter((_,j)=>j!==i))}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      {saved && (
+        <div style={{textAlign:"center",padding:"10px",borderRadius:12,background:`${C.accent}18`,color:C.accent,fontWeight:800,fontSize:13}}>
+          ✅ ¡Guardado!
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ADMIN: FINANZAS ──────────────────────────────────────────────────────
+function AdminFinanzas({ allBookings, C, SERVICES, PRECIOS_BASE, formatPeso, calcularPrecio, today }) {
+  const [periodo, setPeriodo] = useState("mes");
+
+  const now = new Date();
+  const startOfWeek  = new Date(now); startOfWeek.setDate(now.getDate()-now.getDay());
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+
+  const filtered = allBookings.filter(b => {
+    const d = new Date(b.date);
+    if (periodo==="hoy")    return b.date===todayStr;
+    if (periodo==="semana") return d>=startOfWeek;
+    if (periodo==="mes")    return d>=startOfMonth;
+    return true;
+  });
+
+  const completados = filtered.filter(b=>b.status==="completado");
+  const cancelados  = filtered.filter(b=>b.status==="cancelado");
+  const pendientes  = filtered.filter(b=>!b.status||b.status==="pendiente");
+
+  const calcTotal = (bookings) => bookings.reduce((sum,b) => {
+    const clientBookings = allBookings.filter(x=>x.phone===b.phone);
+    const isNew = clientBookings.indexOf(b)===0;
+    const weekly  = clientBookings.filter(x=>new Date(x.date)>=startOfWeek&&x.date<b.date).length;
+    const monthly = clientBookings.filter(x=>new Date(x.date)>=startOfMonth&&x.date<b.date).length;
+    const p = calcularPrecio({ service:b.service, duration:b.duration, duration2:b.duration2||60, twoDogs:!!(b.dog2), isNewClient:isNew, weeklyCount:weekly, monthlyCount:monthly });
+    return sum + p.subtotal;
+  }, 0);
+
+  const totalComp   = calcTotal(completados);
+  const totalPend   = calcTotal(pendientes);
+  const totalCanc50 = calcTotal(cancelados) * 0.5;
+
+  // Ingresos por servicio
+  const porServicio = SERVICES.filter(s=>s.enabled).map(s=>({
+    ...s,
+    count: filtered.filter(b=>b.service===s.id).length,
+    total: calcTotal(filtered.filter(b=>b.service===s.id)),
+  }));
+
+  return (
+    <div>
+      {/* Filtro periodo */}
+      <div className="toggle-bar" style={{marginBottom:18}}>
+        {[["hoy","Hoy"],["semana","Esta semana"],["mes","Este mes"],["todo","Todo"]].map(([val,label])=>(
+          <div key={val} className={`tog-opt ${periodo===val?"act":""}`} style={{fontSize:11}} onClick={()=>setPeriodo(val)}>{label}</div>
+        ))}
+      </div>
+
+      {/* Tarjetas resumen */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:18}}>
+        {[
+          ["💰 Cobrado",formatPeso(totalComp),C.accent,`${completados.length} turnos`],
+          ["⏳ Por cobrar",formatPeso(totalPend),C.primary,`${pendientes.length} turnos`],
+          ["❌ Cancelaciones",formatPeso(totalCanc50),C.secondary,`50% de ${cancelados.length} turnos`],
+          ["📊 Total estimado",formatPeso(totalComp+totalPend),C.dark,`${filtered.length} turnos en total`],
+        ].map(([label,value,color,sub])=>(
+          <div key={label} style={{background:C.bgCard,border:`1px solid ${C.light}`,borderRadius:16,padding:16}}>
+            <div style={{fontSize:11,color:C.soft,fontWeight:700,marginBottom:4}}>{label}</div>
+            <div style={{fontWeight:900,fontSize:18,color}}>{value}</div>
+            <div style={{fontSize:10,color:C.soft,marginTop:2}}>{sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Por servicio */}
+      <div className="card" style={{padding:18,marginBottom:14}}>
+        <div style={{fontWeight:800,color:C.primary,fontSize:13,marginBottom:12}}>📊 Por servicio</div>
+        {porServicio.map(s=>(
+          <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.light}`}}>
+            <div style={{fontSize:13,color:C.dark}}>{s.icon} {s.label}</div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontWeight:800,color:s.color,fontSize:13}}>{formatPeso(s.total)}</div>
+              <div style={{fontSize:10,color:C.soft}}>{s.count} turno(s)</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Detalle de completados */}
+      {completados.length > 0 && (
+        <div className="card" style={{padding:18}}>
+          <div style={{fontWeight:800,color:C.accent,fontSize:13,marginBottom:12}}>✅ Turnos completados</div>
+          {completados.map(b=>{
+            const svc=SERVICES.find(s=>s.id===b.service);
+            return (
+              <div key={b.id} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.light}`,fontSize:12}}>
+                <div style={{color:C.dark}}>{b.date?.split("-").reverse().join("/")} · {b.name} · {svc?.icon}</div>
+                <div style={{fontWeight:800,color:C.accent}}>{formatPeso(PRECIOS_BASE[b.duration]||8000)}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+} 
+
 export default function App() {
   const today = new Date();
 
@@ -892,74 +1298,67 @@ export default function App() {
       {/* ADMIN PANEL */}
       {adminView && (
         <div style={{position:"fixed",inset:0,background:C.bg,zIndex:200,overflowY:"auto",padding:"20px 16px 40px"}}>
-          <div style={{maxWidth:560,margin:"0 auto"}}>
+          <div style={{maxWidth:600,margin:"0 auto"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
               <div style={{fontFamily:"'Fredoka One',cursive",fontSize:24,color:C.primary}}>⚙️ Panel Admin</div>
               <button className="btn-s" onClick={()=>{setAdminView(false);setAdminPass("");}}>✕ Cerrar</button>
             </div>
 
-            <div className="toggle-bar" style={{marginBottom:22}}>
-              {[["turnos","📋 Turnos"],["horarios","🕐 Horarios & Zonas"]].map(([id,label])=>(
-                <div key={id} className={`tog-opt ${adminTab===id?"act":""}`} onClick={()=>setAdminTab(id)}>{label}</div>
+            {/* TABS */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:4,background:C.light,borderRadius:50,padding:3,marginBottom:22}}>
+              {[["turnos","📋 Turnos"],["clientes","👥 Clientes"],["config","⚙️ Config"],["finanzas","💰 Finanzas"]].map(([id,label])=>(
+                <div key={id} className={`tog-opt ${adminTab===id?"act":""}`} style={{fontSize:11,padding:"8px 4px"}} onClick={()=>setAdminTab(id)}>{label}</div>
               ))}
             </div>
 
+            {/* ── TAB: TURNOS ── */}
             {adminTab==="turnos" && (
-              <div>
-                <div style={{color:C.soft,fontSize:12,marginBottom:14}}>{allBookings.length} turno(s) registrados</div>
-                {allBookings.length===0 && (
-                  <div style={{textAlign:"center",color:C.soft,padding:40}}>
-                    <div style={{fontSize:44,marginBottom:10}}>📭</div>No hay turnos aún
-                  </div>
-                )}
-                {allBookings.slice().reverse().map(b=>{
-                  const svc=SERVICES.find(s=>s.id===b.service);
-                  const dur=DURATIONS.find(d=>d.value===b.duration);
-                  return (
-                    <div key={b.id} className="bk-row" style={{borderLeftColor:svc?.color}}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                        <span style={{fontWeight:800,color:svc?.color,fontSize:13}}>{svc?.icon} {svc?.label}</span>
-                        <span style={{color:C.soft,fontSize:12}}>{b.date?.split("-").reverse().join("/")} · {b.time}</span>
-                      </div>
-                      <div style={{fontSize:12,color:C.soft,marginBottom:3}}>
-                        ⏱ {b.duration} min · 📍 {b.barrio}
-                        {!b.dog2&&b.sharedOk && <span style={{color:C.accent,marginLeft:8,fontSize:11}}>✓ Compartido OK</span>}
-                      </div>
-                      <div style={{fontSize:12,color:C.dark}}>
-                        👤 {b.name} · 📱 {b.phone}
-                      </div>
-                      <div style={{fontSize:12,color:C.dark}}>
-                        🐶 {b.dog}{b.breed?` (${b.breed})`:""}{b.dog2?` + ${b.dog2}${b.breed2?` (${b.breed2})`:""}`:""} 
-                      </div>
-                      {b.notes && <div style={{fontSize:11,color:C.soft,marginTop:4}}>💬 {b.notes}</div>}
-                    </div>
-                  );
-                })}
-              </div>
+              <AdminTurnos
+                allBookings={allBookings}
+                setAllBookings={setAllBookings}
+                today={today}
+                C={C}
+                SERVICES={SERVICES}
+                DURATIONS={DURATIONS}
+                formatPeso={formatPeso}
+              />
             )}
 
-            {adminTab==="horarios" && (
-              <div>
-                <div style={{color:C.soft,fontSize:13,marginBottom:18,lineHeight:1.7}}>
-                  Temporada activa: <strong style={{color:C.primary}}>{SCHEDULES[ACTIVE_SEASON].label}</strong>.
-                  Para cambiar, modificá <code style={{color:C.accent,background:`${C.accent}18`,padding:"1px 7px",borderRadius:6}}>ACTIVE_SEASON</code> en el código.
-                </div>
-                {Object.entries(SCHEDULES).map(([key,sch])=>(
-                  <div key={key} className="card" style={{padding:18,marginBottom:14,borderColor:key===ACTIVE_SEASON?`${C.primary}55`:C.light}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-                      <span style={{fontFamily:"'Fredoka One',cursive",fontSize:17,color:C.dark}}>{sch.label}</span>
-                      {key===ACTIVE_SEASON && <span style={{display:"inline-block",borderRadius:20,padding:"2px 10px",fontSize:10,fontWeight:800,background:`${C.primary}18`,color:C.primary}}>ACTIVA</span>}
-                    </div>
-                    {sch.blocks.map(b=>(
-                      <div key={b.label} style={{display:"flex",justifyContent:"space-between",padding:"8px 12px",borderRadius:10,background:C.light,marginBottom:7}}>
-                        <span style={{fontWeight:700,color:C.soft,fontSize:13}}>{b.label}</span>
-                        <span style={{fontWeight:800,color:C.primary,fontSize:13}}>{b.from} – {b.to}</span>
-                      </div>
-                    ))}
-                    <div style={{fontSize:11,color:C.soft,marginTop:6}}>Slots cada 15 min · Buffer entre turnos: 20 min</div>
-                  </div>
-                ))}
-              </div>
+            {/* ── TAB: CLIENTES ── */}
+            {adminTab==="clientes" && (
+              <AdminClientes
+                allBookings={allBookings}
+                setAllBookings={setAllBookings}
+                C={C}
+                SERVICES={SERVICES}
+                formatPeso={formatPeso}
+                calcularPrecio={calcularPrecio}
+                DURATIONS={DURATIONS}
+              />
+            )}
+
+            {/* ── TAB: CONFIG ── */}
+            {adminTab==="config" && (
+              <AdminConfig
+                allBookings={allBookings}
+                setAllBookings={setAllBookings}
+                C={C}
+                SCHEDULES={SCHEDULES}
+                ACTIVE_SEASON={ACTIVE_SEASON}
+              />
+            )}
+
+            {/* ── TAB: FINANZAS ── */}
+            {adminTab==="finanzas" && (
+              <AdminFinanzas
+                allBookings={allBookings}
+                C={C}
+                SERVICES={SERVICES}
+                PRECIOS_BASE={PRECIOS_BASE}
+                formatPeso={formatPeso}
+                calcularPrecio={calcularPrecio}
+                today={today}
+              />
             )}
           </div>
         </div>
