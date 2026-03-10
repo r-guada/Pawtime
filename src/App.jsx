@@ -1409,6 +1409,31 @@ export default function App() {
                   <strong style={{color:C.primary}}>📋 Política de cancelación:</strong> Las cancelaciones deben realizarse con al menos <strong>12 horas de anticipación</strong>. En caso contrario se abona el 50% del valor del paseo. Se evalúan excepciones por emergencias o urgencias.
                 </div>
 
+                 {/* Seleccionar perro desde ficha */}
+              {(() => {
+                const savedDogs = (() => { try { return JSON.parse(localStorage.getItem(perros_${authUser?.id}) || "[]"); } catch { return []; } })();
+                return savedDogs.length > 0 ? (
+                  <div style={{padding:14,borderRadius:14,background:C.light,border:1px solid ${C.soft}33}}>
+                    <div style={{fontWeight:800,fontSize:12,color:C.primary,marginBottom:10}}>🐶 SELECCIONÁ TU PERRO</div>
+                    <FichaPerros
+                      userId={authUser.id}
+                      C={C}
+                      readOnly={true}
+                      onSelectDog={(p) => setForm(f => ({
+                        ...f,
+                        dog: p.nombre,
+                        breed: p.raza || "",
+                      }))}
+                    />
+                    {form.dog && (
+                      <div style={{marginTop:8,fontSize:12,color:C.accent,fontWeight:700}}>
+                        ✅ Seleccionado: {form.dog}
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+              })()}
+
                 <div style={{display:"grid",gap:13}}>
                   <div>
                     <label className="lbl">TU NOMBRE *</label>
