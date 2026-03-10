@@ -1287,7 +1287,7 @@ export default function App() {
             <div style={{display:"flex",gap:10}}>
               <button className="btn-s" style={{flex:1}} onClick={()=>setShowAdminModal(false)}>Cancelar</button>
               <button className="btn-p" style={{flex:1,padding:"11px 0"}} onClick={()=>{
-                if(adminPass==="IACCg14"){setAdminView(true);setShowAdminModal(false);}
+                if (adminPass==="IACCg14"){setAdminView(true);setShowAdminModal(false);}
                 else alert("Contraseña incorrecta");
               }}>Entrar</button>
             </div>
