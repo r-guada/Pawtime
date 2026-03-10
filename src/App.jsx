@@ -1282,12 +1282,12 @@ export default function App() {
             <h3 style={{fontFamily:"'Fredoka One',cursive",fontSize:20,marginBottom:18,textAlign:"center",color:C.dark}}>🔐 Panel Admin</h3>
             <input className="inp" type="password" placeholder="Contraseña" value={adminPass}
               onChange={e=>setAdminPass(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter"&&adminPass==="admin123"){setAdminView(true);setShowAdminModal(false);}}}
+              onKeyDown={e=>{ if(e.key==="Enter"&&adminPass==="IACCg14"){setAdminView(true);setShowAdminModal(false);}}}
               style={{marginBottom:14}}/>
             <div style={{display:"flex",gap:10}}>
               <button className="btn-s" style={{flex:1}} onClick={()=>setShowAdminModal(false)}>Cancelar</button>
               <button className="btn-p" style={{flex:1,padding:"11px 0"}} onClick={()=>{
-                if(adminPass==="admin123"){setAdminView(true);setShowAdminModal(false);}
+                if(adminPass==="IACCg14"){setAdminView(true);setShowAdminModal(false);}
                 else alert("Contraseña incorrecta");
               }}>Entrar</button>
             </div>
