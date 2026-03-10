@@ -553,6 +553,271 @@ function AdminFinanzas({ allBookings, C, SERVICES, PRECIOS_BASE, formatPeso, cal
   );
 } 
 
+// ─── FICHA DE PERROS ──────────────────────────────────────────────────────────
+// Pegá esto ANTES de la línea: export default function App()
+
+function FichaPerros({ userId, C, readOnly = false, onSelectDog = null }) {
+  const STORAGE_KEY = `perros_${userId}`;
+  const [perros, setPerros] = useState([]);
+  const [editando, setEditando] = useState(null); // null | "nuevo" | id
+  const [form, setForm] = useState({});
+  const [fotoPreview, setFotoPreview] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const [expandId, setExpandId] = useState(null);
+
+  const CARACTERISTICAS = ["Dócil","Juguetón","Nervioso","Tímido","Sociable","Agresivo con otros perros","Tira de la correa","Necesita atención especial"];
+  const TAMANIOS = ["Pequeño (hasta 10kg)","Mediano (10–25kg)","Grande (más de 25kg)"];
+
+  // Cargar perros desde Supabase storage (usando tabla perros si existe, sino localStorage)
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) setPerros(JSON.parse(saved));
+  }, [userId]);
+
+  const guardar = async () => {
+    setGuardando(true);
+    const nuevo = {
+      ...form,
+      id: editando === "nuevo" ? Date.now() : editando,
+      foto: fotoPreview || form.foto || null,
+    };
+    const actualizados = editando === "nuevo"
+      ? [...perros, nuevo]
+      : perros.map(p => p.id === editando ? nuevo : p);
+    setPerros(actualizados);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizados));
+    setEditando(null);
+    setForm({});
+    setFotoPreview(null);
+    setGuardando(false);
+  };
+
+  const eliminar = (id) => {
+    if (!confirm("¿Eliminar esta ficha?")) return;
+    const actualizados = perros.filter(p => p.id !== id);
+    setPerros(actualizados);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(actualizados));
+  };
+
+  const iniciarEdicion = (perro) => {
+    setForm(perro);
+    setFotoPreview(perro.foto || null);
+    setEditando(perro.id);
+  };
+
+  const handleFoto = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setFotoPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const toggleCarac = (c) => {
+    const actual = form.caracteristicas || [];
+    setForm(f => ({
+      ...f,
+      caracteristicas: actual.includes(c) ? actual.filter(x=>x!==c) : [...actual, c]
+    }));
+  };
+
+  // Modo solo lectura para seleccionar perro al reservar
+  if (readOnly) {
+    return (
+      <div>
+        {perros.length === 0 ? (
+          <div style={{fontSize:13,color:C.soft,textAlign:"center",padding:"10px 0"}}>
+            No tenés fichas guardadas aún
+          </div>
+        ) : (
+          <div style={{display:"grid",gap:8}}>
+            {perros.map(p => (
+              <div key={p.id}
+                onClick={() => onSelectDog && onSelectDog(p)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:12,background:C.light,cursor:onSelectDog?"pointer":"default",border:`1.5px solid ${C.light}`,transition:"border .15s"}}
+                onMouseOver={e=>{ if(onSelectDog) e.currentTarget.style.borderColor=C.primary; }}
+                onMouseOut={e=>{ e.currentTarget.style.borderColor=C.light; }}
+              >
+                {p.foto
+                  ? <img src={p.foto} alt={p.nombre} style={{width:38,height:38,borderRadius:"50%",objectFit:"cover",flexShrink:0}}/>
+                  : <div style={{width:38,height:38,borderRadius:"50%",background:`linear-gradient(135deg,${C.primary},${C.secondary})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🐕</div>
+                }
+                <div>
+                  <div style={{fontWeight:800,fontSize:13,color:C.dark}}>{p.nombre}</div>
+                  <div style={{fontSize:11,color:C.soft}}>{p.raza}{p.edad?` · ${p.edad} años`:""}{p.tamanio?` · ${p.tamanio}`:""}</div>
+                </div>
+                {onSelectDog && <span style={{marginLeft:"auto",color:C.soft,fontSize:16}}>›</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Modo formulario de edición
+  if (editando !== null) {
+    return (
+      <div className="ani">
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+          <button className="btn-s" style={{padding:"7px 12px"}} onClick={()=>{setEditando(null);setForm({});setFotoPreview(null);}}>‹</button>
+          <div style={{fontFamily:"'Fredoka One',cursive",fontSize:20,color:C.primary}}>
+            {editando==="nuevo" ? "🐾 Nueva ficha" : "✏️ Editar ficha"}
+          </div>
+        </div>
+
+        {/* Foto */}
+        <div style={{textAlign:"center",marginBottom:20}}>
+          <div style={{position:"relative",display:"inline-block"}}>
+            {fotoPreview
+              ? <img src={fotoPreview} alt="foto" style={{width:90,height:90,borderRadius:"50%",objectFit:"cover",border:`3px solid ${C.primary}`}}/>
+              : <div style={{width:90,height:90,borderRadius:"50%",background:`linear-gradient(135deg,${C.primary},${C.secondary})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,margin:"0 auto"}}>🐕</div>
+            }
+            <label style={{position:"absolute",bottom:0,right:0,width:28,height:28,borderRadius:"50%",background:C.primary,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:14}}>
+              📷
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={handleFoto}/>
+            </label>
+          </div>
+          <div style={{fontSize:11,color:C.soft,marginTop:6}}>Tocá 📷 para agregar foto</div>
+        </div>
+
+        <div style={{display:"grid",gap:12}}>
+          <div>
+            <label className="lbl">NOMBRE *</label>
+            <input className="inp" placeholder="Ej: Rocky" value={form.nombre||""} onChange={e=>setForm(f=>({...f,nombre:e.target.value}))}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div>
+              <label className="lbl">RAZA</label>
+              <input className="inp" placeholder="Ej: Labrador" value={form.raza||""} onChange={e=>setForm(f=>({...f,raza:e.target.value}))}/>
+            </div>
+            <div>
+              <label className="lbl">EDAD (años)</label>
+              <input className="inp" type="number" min="0" max="25" placeholder="Ej: 3" value={form.edad||""} onChange={e=>setForm(f=>({...f,edad:e.target.value}))}/>
+            </div>
+          </div>
+          <div>
+            <label className="lbl">TAMAÑO</label>
+            <select className="inp" value={form.tamanio||""} onChange={e=>setForm(f=>({...f,tamanio:e.target.value}))}>
+              <option value="">Seleccioná...</option>
+              {TAMANIOS.map(t=><option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+
+          {/* Características */}
+          <div>
+            <label className="lbl">CARACTERÍSTICAS</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+              {CARACTERISTICAS.map(c=>{
+                const sel = (form.caracteristicas||[]).includes(c);
+                return (
+                  <div key={c} onClick={()=>toggleCarac(c)}
+                    style={{padding:"5px 12px",borderRadius:20,fontSize:12,fontWeight:700,cursor:"pointer",border:`1.5px solid ${sel?C.primary:C.light}`,background:sel?`${C.primary}18`:C.bgCard,color:sel?C.primary:C.soft,transition:"all .15s"}}>
+                    {c}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Info médica */}
+          <div style={{padding:14,borderRadius:14,background:`${C.secondary}10`,border:`1px solid ${C.secondary}33`}}>
+            <div style={{fontWeight:800,color:C.secondary,fontSize:12,marginBottom:10}}>🏥 Info médica</div>
+            <div style={{display:"grid",gap:10}}>
+              <div>
+                <label className="lbl">VACUNAS AL DÍA</label>
+                <div className="toggle-bar">
+                  {[["si","✅ Sí"],["no","❌ No"],["no_se","No sé"]].map(([val,label])=>(
+                    <div key={val} className={`tog-opt ${form.vacunas===val?"act":""}`} style={{fontSize:12}} onClick={()=>setForm(f=>({...f,vacunas:val}))}>{label}</div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="lbl">ALERGIAS</label>
+                <input className="inp" placeholder="Ej: Polen, ciertos alimentos..." value={form.alergias||""} onChange={e=>setForm(f=>({...f,alergias:e.target.value}))}/>
+              </div>
+              <div>
+                <label className="lbl">MEDICACIÓN</label>
+                <input className="inp" placeholder="Ej: Toma antiparasitario mensual..." value={form.medicacion||""} onChange={e=>setForm(f=>({...f,medicacion:e.target.value}))}/>
+              </div>
+              <div>
+                <label className="lbl">NOTAS MÉDICAS ADICIONALES</label>
+                <textarea className="inp" rows={2} placeholder="Alergias especiales, condiciones, etc..." value={form.notasMedicas||""} onChange={e=>setForm(f=>({...f,notasMedicas:e.target.value}))} style={{resize:"vertical"}}/>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{marginTop:20,display:"flex",gap:10}}>
+          <button className="btn-s" style={{flex:1}} onClick={()=>{setEditando(null);setForm({});setFotoPreview(null);}}>Cancelar</button>
+          <button className="btn-p" style={{flex:2}} disabled={!form.nombre||guardando} onClick={guardar}>
+            {guardando?"Guardando...":"💾 Guardar ficha"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Vista lista de perros
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <div style={{fontFamily:"'Fredoka One',cursive",fontSize:18,color:C.dark}}>🐶 Mis perros</div>
+        <button className="btn-p" style={{fontSize:12,padding:"8px 16px"}} onClick={()=>{setForm({});setFotoPreview(null);setEditando("nuevo");}}>+ Agregar perro</button>
+      </div>
+
+      {perros.length === 0 ? (
+        <div style={{textAlign:"center",padding:"30px 0",color:C.soft}}>
+          <div style={{fontSize:44,marginBottom:10}}>🐾</div>
+          <div style={{fontWeight:700,marginBottom:14}}>Todavía no cargaste ningún perro</div>
+          <button className="btn-p" onClick={()=>{setForm({});setFotoPreview(null);setEditando("nuevo");}}>+ Agregar mi primer perro</button>
+        </div>
+      ) : (
+        <div style={{display:"grid",gap:10}}>
+          {perros.map(p => (
+            <div key={p.id} style={{borderRadius:16,border:`1.5px solid ${expandId===p.id?C.primary:C.light}`,background:C.bgCard,overflow:"hidden"}}>
+              <div style={{padding:"12px 14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer"}} onClick={()=>setExpandId(expandId===p.id?null:p.id)}>
+                {p.foto
+                  ? <img src={p.foto} alt={p.nombre} style={{width:46,height:46,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:`2px solid ${C.primary}44`}}/>
+                  : <div style={{width:46,height:46,borderRadius:"50%",background:`linear-gradient(135deg,${C.primary},${C.secondary})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>🐕</div>
+                }
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,fontSize:15,color:C.dark}}>{p.nombre}</div>
+                  <div style={{fontSize:12,color:C.soft}}>{p.raza}{p.edad?` · ${p.edad} años`:""}{p.tamanio?` · ${p.tamanio}`:""}</div>
+                  {p.caracteristicas?.length > 0 && (
+                    <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:4}}>
+                      {p.caracteristicas.slice(0,3).map(c=>(
+                        <span key={c} style={{fontSize:10,padding:"2px 8px",borderRadius:10,background:`${C.primary}15`,color:C.primary,fontWeight:700}}>{c}</span>
+                      ))}
+                      {p.caracteristicas.length > 3 && <span style={{fontSize:10,color:C.soft}}>+{p.caracteristicas.length-3} más</span>}
+                    </div>
+                  )}
+                </div>
+                <span style={{color:C.soft,fontSize:18}}>{expandId===p.id?"∧":"∨"}</span>
+              </div>
+
+              {expandId===p.id && (
+                <div style={{padding:"0 14px 14px",borderTop:`1px solid ${C.light}`}}>
+                  <div style={{display:"grid",gap:6,marginTop:12,fontSize:12}}>
+                    {p.vacunas && <div style={{color:C.dark}}>💉 Vacunas: <strong>{p.vacunas==="si"?"Al día ✅":p.vacunas==="no"?"No ❌":"No sé"}</strong></div>}
+                    {p.alergias && <div style={{color:C.dark}}>⚠️ Alergias: {p.alergias}</div>}
+                    {p.medicacion && <div style={{color:C.dark}}>💊 Medicación: {p.medicacion}</div>}
+                    {p.notasMedicas && <div style={{color:C.soft}}>📝 {p.notasMedicas}</div>}
+                  </div>
+                  <div style={{display:"flex",gap:8,marginTop:12}}>
+                    <button className="btn-s" style={{flex:1,fontSize:12}} onClick={()=>iniciarEdicion(p)}>✏️ Editar</button>
+                    <button className="btn-s" style={{flex:1,fontSize:12,color:"#e88",borderColor:"#e8855"}} onClick={()=>eliminar(p.id)}>🗑️ Eliminar</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const today = new Date();
 
@@ -1487,7 +1752,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Mis perros (del último turno) */}
+            {/* Mis perros */}
+            <div className="card" style={{padding:18,marginBottom:14}}>
+              <FichaPerros userId={authUser.id} C={C} />
+            </div>
+
             {clientBookings.length > 0 && (() => {
               const ultimo = clientBookings[clientBookings.length - 1];
               return (
